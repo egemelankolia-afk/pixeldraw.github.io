@@ -1,0 +1,223 @@
+<!-- 
+  FIREBASE INTEGRATION EXAMPLE
+  
+  To make PixelPlanet truly multiplayer on GitHub Pages, follow these steps:
+  
+  1. Create a Firebase project at https://console.firebase.google.com/
+  2. Enable Realtime Database
+  3. Copy your Firebase config
+  4. Replace the storage API calls with Firebase calls
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PixelPlanet - Firebase Integration Guide</title>
+</head>
+<body>
+    <h1>Firebase Integration for Real Multiplayer</h1>
+    
+    <h2>Step 1: Add Firebase to your HTML</h2>
+    <pre><code>&lt;script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"&gt;&lt;/script&gt;
+&lt;script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"&gt;&lt;/script&gt;
+&lt;script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"&gt;&lt;/script&gt;</code></pre>
+
+    <h2>Step 2: Initialize Firebase</h2>
+    <pre><code>// Your Firebase configuration
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "your-app.firebaseapp.com",
+  databaseURL: "https://your-app.firebaseio.com",
+  projectId: "your-project-id",
+  storageBucket: "your-app.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "your-app-id"
+};
+
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+const auth = firebase.auth();</code></pre>
+
+    <h2>Step 3: Replace Storage Functions</h2>
+    
+    <h3>User Authentication</h3>
+    <pre><code>// Instead of storing in window.storage, use Firebase Auth
+async function handleRegister(username, password) {
+  // Create Firebase user
+  const userCredential = await auth.createUserWithEmailAndPassword(
+    username + '@pixelplanet.app', // Convert username to email
+    password
+  );
+  
+  // Store user data
+  await database.ref('users/' + userCredential.user.uid).set({
+    username: username,
+    pixelCount: 0,
+    joinedDate: new Date().toISOString()
+  });
+}
+
+async function handleLogin(username, password) {
+  const userCredential = await auth.signInWithEmailAndPassword(
+    username + '@pixelplanet.app',
+    password
+  );
+  return userCredential.user;
+}</code></pre>
+
+    <h3>Canvas Data</h3>
+    <pre><code>// Save pixel to Firebase
+async function placePixel(x, y, color) {
+  const key = `${x},${y}`;
+  await database.ref('canvas/' + key).set({
+    color: color,
+    user: currentUser.username,
+    timestamp: Date.now()
+  });
+}
+
+// Load canvas from Firebase
+async function loadCanvas() {
+  const snapshot = await database.ref('canvas').once('value');
+  const data = snapshot.val();
+  
+  for (const key in data) {
+    const [x, y] = key.split(',').map(Number);
+    pixelGrid[y][x] = data[key].color;
+  }
+}</code></pre>
+
+    <h3>Real-time Updates</h3>
+    <pre><code>// Listen for pixel changes in real-time
+database.ref('canvas').on('child_changed', (snapshot) => {
+  const key = snapshot.key;
+  const [x, y] = key.split(',').map(Number);
+  const data = snapshot.val();
+  
+  pixelGrid[y][x] = data.color;
+  needsRender = true;
+});
+
+// Listen for new pixels
+database.ref('canvas').on('child_added', (snapshot) => {
+  const key = snapshot.key;
+  const [x, y] = key.split(',').map(Number);
+  const data = snapshot.val();
+  
+  pixelGrid[y][x] = data.color;
+  needsRender = true;
+});</code></pre>
+
+    <h3>Online Users</h3>
+    <pre><code>// Update online status
+async function updateOnlineStatus(isOnline) {
+  const userRef = database.ref('online/' + currentUser.username);
+  
+  if (isOnline) {
+    await userRef.set({
+      timestamp: Date.now(),
+      username: currentUser.username
+    });
+    
+    // Remove when disconnected
+    userRef.onDisconnect().remove();
+  } else {
+    await userRef.remove();
+  }
+}
+
+// Listen for online users
+database.ref('online').on('value', (snapshot) => {
+  const onlineUsers = snapshot.val() || {};
+  const usernames = Object.keys(onlineUsers);
+  
+  // Update UI
+  document.getElementById('onlineCount').textContent = usernames.length;
+  // ... update list
+});</code></pre>
+
+    <h2>Step 4: Database Rules</h2>
+    <pre><code>{
+  "rules": {
+    "canvas": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "users": {
+      "$uid": {
+        ".read": true,
+        ".write": "$uid === auth.uid"
+      }
+    },
+    "online": {
+      ".read": true,
+      ".write": "auth != null"
+    }
+  }
+}</code></pre>
+
+    <h2>Alternative: Supabase</h2>
+    <p>For a more modern alternative with PostgreSQL:</p>
+    <pre><code>// 1. Install Supabase
+&lt;script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"&gt;&lt;/script&gt;
+
+// 2. Initialize
+const supabase = createClient('YOUR_URL', 'YOUR_ANON_KEY');
+
+// 3. Create tables
+/*
+CREATE TABLE pixels (
+  x INT,
+  y INT,
+  color TEXT,
+  username TEXT,
+  timestamp TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (x, y)
+);
+
+CREATE TABLE users (
+  username TEXT PRIMARY KEY,
+  password_hash TEXT,
+  pixel_count INT DEFAULT 0,
+  joined_date TIMESTAMP DEFAULT NOW()
+);
+*/
+
+// 4. Use Supabase
+async function placePixel(x, y, color) {
+  await supabase.from('pixels').upsert({
+    x, y, color,
+    username: currentUser.username
+  });
+}
+
+// 5. Real-time subscriptions
+supabase
+  .channel('canvas')
+  .on('postgres_changes', 
+    { event: '*', schema: 'public', table: 'pixels' },
+    (payload) => {
+      const { x, y, color } = payload.new;
+      pixelGrid[y][x] = color;
+      needsRender = true;
+    }
+  )
+  .subscribe();</code></pre>
+
+    <h2>Quick Start with Firebase</h2>
+    <ol>
+        <li>Go to <a href="https://console.firebase.google.com/">Firebase Console</a></li>
+        <li>Create a new project</li>
+        <li>Add a web app</li>
+        <li>Copy the config object</li>
+        <li>Enable Realtime Database in Build section</li>
+        <li>Enable Email/Password authentication</li>
+        <li>Set database rules as shown above</li>
+        <li>Replace storage API calls with Firebase calls</li>
+        <li>Deploy to GitHub Pages!</li>
+    </ol>
+
+    <p><strong>Note:</strong> Firebase has a free tier (Spark plan) that's perfect for small projects!</p>
+</body>
+</html>

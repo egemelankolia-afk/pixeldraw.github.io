@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PixelPlanet - Multiplayer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #222;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Login/Register Modal */
+        .auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .auth-modal {
+            background: #2a2a2a;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .auth-title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #fff;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .auth-subtitle {
+            font-size: 14px;
+            color: #888;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 12px;
+            background: #333;
+            border: none;
+            border-radius: 8px;
+            color: #888;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .auth-tab.active {
+            background: #4a7fff;
+            color: #fff;
+        }
+
+        .auth-form {
+            display: none;
+        }
+
+        .auth-form.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            color: #ccc;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4a7fff;
+        }
+
+        .form-button {
+            width: 100%;
+            padding: 14px;
+            background: #4a7fff;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .form-button:hover {
+            background: #3a6fee;
+        }
+
+        .form-button:disabled {
+            background: #333;
+            cursor: not-allowed;
+        }
+
+        .form-error {
+            color: #ff4444;
+            font-size: 13px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .form-error.show {
+            display: block;
+        }
+
+        /* Canvas Container */
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: #111;
+            cursor: grab;
+        }
+
+        #canvas-container.panning {
+            cursor: grabbing;
+        }
+
+        #canvas-container.drawing {
+            cursor: crosshair;
+        }
+
+        #pixelCanvas {
+            position: absolute;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        /* Color Palette */
+        .palette-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(40, 40, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(15, 1fr);
+            gap: 6px;
+        }
+
+        .color-btn {
+            width: 32px;
+            height: 32px;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+        .color-btn:hover {
+            transform: scale(1.15);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .color-btn.selected {
+            border-color: #fff;
+            box-shadow: 0 0 0 2px rgba(40, 40, 40, 0.95), 0 0 0 4px #fff;
+            transform: scale(1.2);
+        }
+
+        /* User Info */
+        .user-info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(40, 40, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .user-stats {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .logout-btn {
+            margin-left: 12px;
+            padding: 6px 12px;
+            background: #ff4444;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .logout-btn:hover {
+            background: #dd3333;
+        }
+
+        /* Coordinates Display */
+        .coords-display {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(40, 40, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .coords-label {
+            color: #888;
+            margin-right: 8px;
+        }
+
+        /* Zoom Display */
+        .zoom-display {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            background: rgba(40, 40, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        /* Online Players */
+        .online-players {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            background: rgba(40, 40, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 13px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            max-width: 200px;
+        }
+
+        .online-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #4a7fff;
+        }
+
+        .online-list {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .online-player {
+            padding: 4px 0;
+            color: #ccc;
+            font-size: 12px;
+        }
+
+        /* Grid Toggle */
+        .grid-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(40, 40, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 10px 14px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            transition: background 0.2s;
+        }
+
+        .grid-toggle:hover {
+            background: rgba(60, 60, 60, 0.95);
+        }
+
+        .grid-toggle.active {
+            background: rgba(80, 120, 255, 0.95);
+        }
+
+        /* Help Overlay */
+        .help-overlay {
+            position: fixed;
+            bottom: 90px;
+            left: 20px;
+            background: rgba(40, 40, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 13px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            max-width: 250px;
+        }
+
+        .help-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .help-item {
+            margin-bottom: 6px;
+            color: #ccc;
+            line-height: 1.4;
+        }
+
+        .help-key {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            margin-right: 4px;
+        }
+
+        /* Pixel Indicator */
+        .pixel-indicator {
+            position: absolute;
+            pointer-events: none;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            display: none;
+        }
+
+        /* Loading */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 18px;
+            z-index: 200;
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(40, 40, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 200;
+            display: none;
+        }
+
+        .notification.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateX(-50%) translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Auth Modal -->
+    <div class="auth-overlay" id="authOverlay">
+        <div class="auth-modal">
+            <div class="auth-title">PixelPlanet</div>
+            <div class="auth-subtitle">Join the multiplayer pixel art canvas</div>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="switchTab('login')">Login</button>
+                <button class="auth-tab" onclick="switchTab('register')">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form class="auth-form active" id="loginForm" onsubmit="return handleLogin(event)">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" class="form-input" id="loginUsername" required minlength="3" maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" id="loginPassword" required minlength="4">
+                </div>
+                <button type="submit" class="form-button">Login</button>
+                <div class="form-error" id="loginError"></div>
+            </form>
+
+            <!-- Register Form -->
+            <form class="auth-form" id="registerForm" onsubmit="return handleRegister(event)">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" class="form-input" id="registerUsername" required minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]+">
+                    <small style="color: #666; font-size: 11px; display: block; margin-top: 4px;">Letters, numbers, and underscores only</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" id="registerPassword" required minlength="4">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirm Password</label>
+                    <input type="password" class="form-input" id="registerPasswordConfirm" required minlength="4">
+                </div>
+                <button type="submit" class="form-button">Create Account</button>
+                <div class="form-error" id="registerError"></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="loading" id="loading" style="display: none;">Loading canvas...</div>
+    <div class="notification" id="notification"></div>
+
+    <!-- Canvas -->
+    <div id="canvas-container" style="display: none;">
+        <canvas id="pixelCanvas"></canvas>
+        <div class="pixel-indicator" id="pixelIndicator"></div>
+    </div>
+
+    <!-- User Info -->
+    <div class="user-info" id="userInfo" style="display: none;">
+        <div class="user-avatar" id="userAvatar"></div>
+        <div class="user-details">
+            <div class="user-name" id="userName"></div>
+            <div class="user-stats"><span id="pixelCount">0</span> pixels placed</div>
+        </div>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <!-- Coordinates -->
+    <div class="coords-display" id="coordsDisplay" style="display: none;">
+        <span class="coords-label">X:</span><span id="coordX">0</span>
+        <span class="coords-label" style="margin-left: 12px;">Y:</span><span id="coordY">0</span>
+    </div>
+
+    <!-- Zoom -->
+    <div class="zoom-display" id="zoomDisplay" style="display: none;">
+        <span class="coords-label">Zoom:</span><span id="zoomLevel">100%</span>
+    </div>
+
+    <!-- Online Players -->
+    <div class="online-players" id="onlinePlayers" style="display: none;">
+        <div class="online-title">Online Players (<span id="onlineCount">0</span>)</div>
+        <div class="online-list" id="onlineList"></div>
+    </div>
+
+    <!-- Help -->
+    <div class="help-overlay" id="helpOverlay" style="display: none;">
+        <div class="help-title">Controls</div>
+        <div class="help-item"><span class="help-key">Click</span> Place pixel</div>
+        <div class="help-item"><span class="help-key">Shift+Drag</span> Brush mode</div>
+        <div class="help-item"><span class="help-key">Drag</span> Pan view</div>
+        <div class="help-item"><span class="help-key">Scroll</span> Zoom in/out</div>
+        <div class="help-item"><span class="help-key">1-9</span> Quick color</div>
+        <div class="help-item"><span class="help-key">G</span> Toggle grid</div>
+    </div>
+
+    <!-- Color Palette -->
+    <div class="palette-container" id="paletteContainer" style="display: none;">
+        <div class="palette-grid" id="colorPalette"></div>
+    </div>
+
+    <!-- Grid Toggle -->
+    <div class="grid-toggle" id="gridToggle" style="display: none;">Grid: OFF</div>
+
+    <script>
+        // GitHub Pages Compatibility
+        // This app uses Claude's storage API for multiplayer features
+        // When hosted on GitHub Pages, you'll need to implement your own backend
+        // Options: Firebase, Supabase, or your own API server
+        
+        // Check if storage API is available
+        const hasStorageAPI = typeof window.storage !== 'undefined';
+        
+        if (!hasStorageAPI) {
+            console.warn('Storage API not available. Running in demo mode.');
+            // Fallback to localStorage for demo purposes
+            window.storage = {
+                async get(key, shared) {
+                    const value = localStorage.getItem(key);
+                    return value ? { value } : null;
+                },
+                async set(key, value, shared) {
+                    localStorage.setItem(key, value);
+                    return { key, value };
+                },
+                async delete(key, shared) {
+                    localStorage.removeItem(key);
+                    return { key, deleted: true };
+                },
+                async list(prefix, shared) {
+                    const keys = Object.keys(localStorage).filter(k => 
+                        !prefix || k.startsWith(prefix)
+                    );
+                    return { keys };
+                }
+            };
+        }
+
+        // Configuration
+        const CANVAS_SIZE = 512;
+        const GRID_SIZE = CANVAS_SIZE;
+        const MIN_ZOOM = 0.25;
+        const MAX_ZOOM = 32;
+        const PIXEL_PLACE_COOLDOWN = 0;
+
+        // Colors
+        const COLORS = [
+            '#FFFFFF', '#E4E4E4', '#888888', '#222222', '#FFA7D1', '#E50000',
+            '#E59500', '#A06A42', '#E5D900', '#94E044', '#02BE01', '#00D3DD',
+            '#0083C7', '#0000EA', '#CF6EE4', '#820080', '#000000', '#C4C4C4',
+            '#4E4E4E', '#FF6565', '#FFAA00', '#604028', '#FFD635', '#00CC78',
+            '#00A368', '#00CED1', '#0000D3', '#4682B4', '#FF00FF', '#750075'
+        ];
+
+        // Auth State
+        let currentUser = null;
+
+        // Canvas State
+        let canvas, ctx, offscreenCanvas, offscreenCtx;
+        let pixelGrid = [];
+        let selectedColor = COLORS[0];
+        let viewportX = 0;
+        let viewportY = 0;
+        let zoom = 4;
+        let isDragging = false;
+        let isBrushing = false;
+        let isShiftPressed = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let showGrid = false;
+        let needsRender = true;
+        let userPixelCount = 0;
+
+        // Tab Switching
+        function switchTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            
+            if (tab === 'login') {
+                document.querySelectorAll('.auth-tab')[0].classList.add('active');
+                document.getElementById('loginForm').classList.add('active');
+            } else {
+                document.querySelectorAll('.auth-tab')[1].classList.add('active');
+                document.getElementById('registerForm').classList.add('active');
+            }
+        }
+
+        // Show notification
+        function showNotification(message) {
+            const notif = document.getElementById('notification');
+            notif.textContent = message;
+            notif.classList.add('show');
+            setTimeout(() => notif.classList.remove('show'), 3000);
+        }
+
+        // Handle Login
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const errorEl = document.getElementById('loginError');
+
+            try {
+                // Get users from storage
+                const usersResult = await window.storage.get('pixelplanet-users', true);
+                const users = usersResult ? JSON.parse(usersResult.value) : {};
+
+                if (!users[username]) {
+                    errorEl.textContent = 'Username not found';
+                    errorEl.classList.add('show');
+                    return false;
+                }
+
+                if (users[username].password !== password) {
+                    errorEl.textContent = 'Invalid password';
+                    errorEl.classList.add('show');
+                    return false;
+                }
+
+                // Login successful
+                currentUser = {
+                    username: username,
+                    pixelCount: users[username].pixelCount || 0,
+                    joinedDate: users[username].joinedDate
+                };
+
+                await startApp();
+                return false;
+            } catch (error) {
+                errorEl.textContent = 'Login failed. Please try again.';
+                errorEl.classList.add('show');
+                return false;
+            }
+        }
+
+        // Handle Register
+        async function handleRegister(e) {
+            e.preventDefault();
+            const username = document.getElementById('registerUsername').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
+            const errorEl = document.getElementById('registerError');
+
+            if (password !== passwordConfirm) {
+                errorEl.textContent = 'Passwords do not match';
+                errorEl.classList.add('show');
+                return false;
+            }
+
+            try {
+                // Get existing users
+                const usersResult = await window.storage.get('pixelplanet-users', true);
+                const users = usersResult ? JSON.parse(usersResult.value) : {};
+
+                if (users[username]) {
+                    errorEl.textContent = 'Username already taken';
+                    errorEl.classList.add('show');
+                    return false;
+                }
+
+                // Create new user
+                users[username] = {
+                    password: password,
+                    pixelCount: 0,
+                    joinedDate: new Date().toISOString()
+                };
+
+                await window.storage.set('pixelplanet-users', JSON.stringify(users), true);
+
+                currentUser = {
+                    username: username,
+                    pixelCount: 0,
+                    joinedDate: users[username].joinedDate
+                };
+
+                showNotification('Account created successfully!');
+                await startApp();
+                return false;
+            } catch (error) {
+                errorEl.textContent = 'Registration failed. Please try again.';
+                errorEl.classList.add('show');
+                return false;
+            }
+        }
+
+        // Logout
+        async function logout() {
+            currentUser = null;
+            document.getElementById('authOverlay').style.display = 'flex';
+            document.getElementById('canvas-container').style.display = 'none';
+            document.getElementById('userInfo').style.display = 'none';
+            document.getElementById('coordsDisplay').style.display = 'none';
+            document.getElementById('zoomDisplay').style.display = 'none';
+            document.getElementById('onlinePlayers').style.display = 'none';
+            document.getElementById('helpOverlay').style.display = 'none';
+            document.getElementById('paletteContainer').style.display = 'none';
+            document.getElementById('gridToggle').style.display = 'none';
+            
+            // Update online status
+            await updateOnlineStatus(false);
+        }
+
+        // Start app after login
+        async function startApp() {
+            document.getElementById('authOverlay').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
+            // Update UI
+            document.getElementById('userName').textContent = currentUser.username;
+            document.getElementById('userAvatar').textContent = currentUser.username[0].toUpperCase();
+            document.getElementById('pixelCount').textContent = currentUser.pixelCount;
+
+            // Show UI elements
+            document.getElementById('userInfo').style.display = 'flex';
+            document.getElementById('coordsDisplay').style.display = 'block';
+            document.getElementById('zoomDisplay').style.display = 'block';
+            document.getElementById('onlinePlayers').style.display = 'block';
+            document.getElementById('helpOverlay').style.display = 'block';
+            document.getElementById('paletteContainer').style.display = 'block';
+            document.getElementById('gridToggle').style.display = 'block';
+
+            // Initialize canvas
+            await initCanvas();
+
+            document.getElementById('canvas-container').style.display = 'block';
+            document.getElementById('loading').style.display = 'none';
+
+            // Update online status
+            await updateOnlineStatus(true);
+            
+            // Start polling for online users
+            setInterval(updateOnlinePlayersList, 5000);
+            updateOnlinePlayersList();
+        }
+
+        // Update online status
+        async function updateOnlineStatus(isOnline) {
+            try {
+                const statusResult = await window.storage.get('pixelplanet-online', true);
+                const onlineUsers = statusResult ? JSON.parse(statusResult.value) : {};
+                
+                if (isOnline) {
+                    onlineUsers[currentUser.username] = Date.now();
+                } else {
+                    delete onlineUsers[currentUser.username];
+                }
+
+                await window.storage.set('pixelplanet-online', JSON.stringify(onlineUsers), true);
+            } catch (error) {
+                console.error('Failed to update online status:', error);
+            }
+        }
+
+        // Update online players list
+        async function updateOnlinePlayersList() {
+            try {
+                const statusResult = await window.storage.get('pixelplanet-online', true);
+                const onlineUsers = statusResult ? JSON.parse(statusResult.value) : {};
+                
+                // Remove users offline for more than 30 seconds
+                const now = Date.now();
+                const activeUsers = {};
+                for (const username in onlineUsers) {
+                    if (now - onlineUsers[username] < 30000) {
+                        activeUsers[username] = onlineUsers[username];
+                    }
+                }
+
+                // Update our status
+                if (currentUser) {
+                    activeUsers[currentUser.username] = now;
+                    await window.storage.set('pixelplanet-online', JSON.stringify(activeUsers), true);
+                }
+
+                // Update UI
+                const usernames = Object.keys(activeUsers).sort();
+                document.getElementById('onlineCount').textContent = usernames.length;
+                
+                const listEl = document.getElementById('onlineList');
+                listEl.innerHTML = usernames.map(u => 
+                    `<div class="online-player">${u === currentUser.username ? '• ' : ''}${u}</div>`
+                ).join('');
+            } catch (error) {
+                console.error('Failed to update online players:', error);
+            }
+        }
+
+        // Initialize Canvas
+        async function initCanvas() {
+            canvas = document.getElementById('pixelCanvas');
+            ctx = canvas.getContext('2d', { 
+                alpha: false,
+                desynchronized: true
+            });
+
+            offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = GRID_SIZE;
+            offscreenCanvas.height = GRID_SIZE;
+            offscreenCtx = offscreenCanvas.getContext('2d', { alpha: false });
+
+            // Initialize grid
+            for (let y = 0; y < GRID_SIZE; y++) {
+                pixelGrid[y] = new Array(GRID_SIZE).fill('#FFFFFF');
+            }
+
+            await loadCanvas();
+            setupCanvas();
+            setupColorPalette();
+            setupEventListeners();
+            renderOffscreenCanvas();
+            renderLoop();
+        }
+
+        // Setup canvas size
+        function setupCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            viewportX = -GRID_SIZE / 2;
+            viewportY = -GRID_SIZE / 2;
+            needsRender = true;
+        }
+
+        // Setup color palette
+        function setupColorPalette() {
+            const palette = document.getElementById('colorPalette');
+            palette.innerHTML = '';
+            COLORS.forEach((color, index) => {
+                const btn = document.createElement('div');
+                btn.className = 'color-btn';
+                btn.style.backgroundColor = color;
+                if (index === 0) btn.classList.add('selected');
+                btn.addEventListener('click', () => selectColor(color, btn));
+                palette.appendChild(btn);
+            });
+        }
+
+        // Select color
+        function selectColor(color, btn) {
+            selectedColor = color;
+            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            window.addEventListener('resize', () => {
+                setupCanvas();
+            });
+
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseUp);
+            canvas.addEventListener('wheel', handleWheel, { passive: false });
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+            window.addEventListener('keydown', handleKeyDown);
+            window.addEventListener('keyup', handleKeyUp);
+
+            document.getElementById('gridToggle').addEventListener('click', toggleGrid);
+
+            // Heartbeat for online status
+            setInterval(() => {
+                if (currentUser) {
+                    updateOnlineStatus(true);
+                }
+            }, 10000);
+        }
+
+        // Mouse handlers
+        function handleMouseDown(e) {
+            if (e.button === 0) {
+                if (e.shiftKey || isShiftPressed) {
+                    isBrushing = true;
+                    document.getElementById('canvas-container').classList.add('drawing');
+                    const worldPos = screenToWorld(e.clientX, e.clientY);
+                    placePixel(worldPos.x, worldPos.y);
+                } else {
+                    const worldPos = screenToWorld(e.clientX, e.clientY);
+                    placePixel(worldPos.x, worldPos.y);
+                    isDragging = true;
+                    document.getElementById('canvas-container').classList.add('panning');
+                }
+            } else {
+                isDragging = true;
+                document.getElementById('canvas-container').classList.add('panning');
+            }
+            
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        }
+
+        function handleMouseMove(e) {
+            const worldPos = screenToWorld(e.clientX, e.clientY);
+            const gridX = Math.floor(worldPos.x);
+            const gridY = Math.floor(worldPos.y);
+            
+            document.getElementById('coordX').textContent = gridX;
+            document.getElementById('coordY').textContent = gridY;
+
+            if (zoom >= 2) {
+                showPixelIndicator(gridX, gridY);
+            } else {
+                document.getElementById('pixelIndicator').style.display = 'none';
+            }
+
+            if (isBrushing) {
+                placePixel(worldPos.x, worldPos.y);
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                return;
+            }
+
+            if (isDragging) {
+                const dx = (e.clientX - lastMouseX) / zoom;
+                const dy = (e.clientY - lastMouseY) / zoom;
+                
+                viewportX -= dx;
+                viewportY -= dy;
+                
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                needsRender = true;
+            }
+        }
+
+        function handleMouseUp() {
+            isDragging = false;
+            isBrushing = false;
+            document.getElementById('canvas-container').classList.remove('panning');
+            document.getElementById('canvas-container').classList.remove('drawing');
+        }
+
+        function handleWheel(e) {
+            e.preventDefault();
+            
+            const mouseWorldBefore = screenToWorld(e.clientX, e.clientY);
+            const zoomFactor = e.deltaY < 0 ? 1.2 : 0.8;
+            zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * zoomFactor));
+            const mouseWorldAfter = screenToWorld(e.clientX, e.clientY);
+            
+            viewportX += mouseWorldBefore.x - mouseWorldAfter.x;
+            viewportY += mouseWorldBefore.y - mouseWorldAfter.y;
+            
+            document.getElementById('zoomLevel').textContent = Math.round(zoom * 100 / 4) + '%';
+            needsRender = true;
+        }
+
+        function handleKeyDown(e) {
+            if (e.key === 'Shift') isShiftPressed = true;
+            
+            if (e.key >= '1' && e.key <= '9') {
+                const index = parseInt(e.key) - 1;
+                if (index < COLORS.length) {
+                    const btn = document.querySelectorAll('.color-btn')[index];
+                    selectColor(COLORS[index], btn);
+                }
+            }
+            
+            if (e.key === 'g' || e.key === 'G') toggleGrid();
+            
+            const speed = 50 / zoom;
+            if (e.key === 'w' || e.key === 'W') viewportY -= speed;
+            if (e.key === 's' || e.key === 'S') viewportY += speed;
+            if (e.key === 'a' || e.key === 'A') viewportX -= speed;
+            if (e.key === 'd' || e.key === 'D') viewportX += speed;
+            
+            needsRender = true;
+        }
+
+        function handleKeyUp(e) {
+            if (e.key === 'Shift') isShiftPressed = false;
+        }
+
+        function toggleGrid() {
+            showGrid = !showGrid;
+            const btn = document.getElementById('gridToggle');
+            btn.textContent = `Grid: ${showGrid ? 'ON' : 'OFF'}`;
+            btn.classList.toggle('active', showGrid);
+            needsRender = true;
+        }
+
+        function screenToWorld(screenX, screenY) {
+            return {
+                x: viewportX + screenX / zoom,
+                y: viewportY + screenY / zoom
+            };
+        }
+
+        function worldToScreen(worldX, worldY) {
+            return {
+                x: (worldX - viewportX) * zoom,
+                y: (worldY - viewportY) * zoom
+            };
+        }
+
+        function showPixelIndicator(gridX, gridY) {
+            if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE) {
+                document.getElementById('pixelIndicator').style.display = 'none';
+                return;
+            }
+            
+            const screen = worldToScreen(gridX, gridY);
+            const indicator = document.getElementById('pixelIndicator');
+            indicator.style.display = 'block';
+            indicator.style.left = screen.x + 'px';
+            indicator.style.top = screen.y + 'px';
+            indicator.style.width = zoom + 'px';
+            indicator.style.height = zoom + 'px';
+        }
+
+        async function placePixel(worldX, worldY) {
+            const gridX = Math.floor(worldX);
+            const gridY = Math.floor(worldY);
+            
+            if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE) return;
+            
+            if (pixelGrid[gridY][gridX] !== selectedColor) {
+                pixelGrid[gridY][gridX] = selectedColor;
+                
+                offscreenCtx.fillStyle = selectedColor;
+                offscreenCtx.fillRect(gridX, gridY, 1, 1);
+                
+                needsRender = true;
+                
+                // Update user stats
+                userPixelCount++;
+                currentUser.pixelCount++;
+                document.getElementById('pixelCount').textContent = currentUser.pixelCount;
+                
+                // Save to user account
+                await updateUserPixelCount();
+                
+                debouncedSave();
+            }
+        }
+
+        async function updateUserPixelCount() {
+            try {
+                const usersResult = await window.storage.get('pixelplanet-users', true);
+                const users = usersResult ? JSON.parse(usersResult.value) : {};
+                
+                if (users[currentUser.username]) {
+                    users[currentUser.username].pixelCount = currentUser.pixelCount;
+                    await window.storage.set('pixelplanet-users', JSON.stringify(users), true);
+                }
+            } catch (error) {
+                console.error('Failed to update pixel count:', error);
+            }
+        }
+
+        function renderOffscreenCanvas() {
+            offscreenCtx.fillStyle = '#FFFFFF';
+            offscreenCtx.fillRect(0, 0, GRID_SIZE, GRID_SIZE);
+            
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    if (pixelGrid[y][x] !== '#FFFFFF') {
+                        offscreenCtx.fillStyle = pixelGrid[y][x];
+                        offscreenCtx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+        }
+
+        function renderLoop() {
+            if (needsRender) {
+                render();
+                needsRender = false;
+            }
+            requestAnimationFrame(renderLoop);
+        }
+
+        function render() {
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const startX = Math.max(0, Math.floor(viewportX));
+            const startY = Math.max(0, Math.floor(viewportY));
+            const endX = Math.min(GRID_SIZE, Math.ceil(viewportX + canvas.width / zoom));
+            const endY = Math.min(GRID_SIZE, Math.ceil(viewportY + canvas.height / zoom));
+            
+            if (zoom < 4) {
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(
+                    offscreenCanvas,
+                    startX, startY, endX - startX, endY - startY,
+                    (startX - viewportX) * zoom,
+                    (startY - viewportY) * zoom,
+                    (endX - startX) * zoom,
+                    (endY - startY) * zoom
+                );
+            } else {
+                for (let y = startY; y < endY; y++) {
+                    for (let x = startX; x < endX; x++) {
+                        const screenPos = worldToScreen(x, y);
+                        ctx.fillStyle = pixelGrid[y][x];
+                        ctx.fillRect(
+                            Math.floor(screenPos.x),
+                            Math.floor(screenPos.y),
+                            Math.ceil(zoom),
+                            Math.ceil(zoom)
+                        );
+                    }
+                }
+            }
+            
+            if (showGrid && zoom >= 4) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 1;
+                
+                for (let x = Math.floor(startX); x <= Math.ceil(endX); x++) {
+                    const screenX = Math.floor((x - viewportX) * zoom);
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, 0);
+                    ctx.lineTo(screenX, canvas.height);
+                    ctx.stroke();
+                }
+                
+                for (let y = Math.floor(startY); y <= Math.ceil(endY); y++) {
+                    const screenY = Math.floor((y - viewportY) * zoom);
+                    ctx.beginPath();
+                    ctx.moveTo(0, screenY);
+                    ctx.lineTo(canvas.width, screenY);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        let saveTimeout;
+        function debouncedSave() {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(saveCanvas, 2000);
+        }
+
+        async function saveCanvas() {
+            try {
+                const compressedData = {};
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        if (pixelGrid[y][x] !== '#FFFFFF') {
+                            compressedData[`${x},${y}`] = pixelGrid[y][x];
+                        }
+                    }
+                }
+                await window.storage.set('pixelplanet-canvas', JSON.stringify(compressedData), true);
+            } catch (error) {
+                console.error('Save failed:', error);
+            }
+        }
+
+        async function loadCanvas() {
+            try {
+                const result = await window.storage.get('pixelplanet-canvas', true);
+                if (result && result.value) {
+                    const compressedData = JSON.parse(result.value);
+                    for (const key in compressedData) {
+                        const [x, y] = key.split(',').map(Number);
+                        if (y < GRID_SIZE && x < GRID_SIZE) {
+                            pixelGrid[y][x] = compressedData[key];
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('Load failed:', error);
+            }
+        }
+    </script>
+</body>
+</html>
